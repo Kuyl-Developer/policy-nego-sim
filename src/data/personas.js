@@ -14,7 +14,7 @@ export const PERSONAS = [
     accent: "var(--p-climate)",
     accentBg: "var(--p-climate-bg)",
     emoji: "🌱",
-    photo: "",
+    photo: "assets/personas/climate.png",
     // 핵심 관점 / 이 페르소나가 전략 초안을 볼 때 우선 점검하는 축
     priorities: [
       "NDC(국가 온실가스 감축목표) 정합성",
@@ -32,7 +32,7 @@ export const PERSONAS = [
     accent: "var(--p-industry)",
     accentBg: "var(--p-industry-bg)",
     emoji: "🏭",
-    photo: "",
+    photo: "assets/personas/industry.png",
     priorities: [
       "전력·에너지 수급 안정",
       "산업계 부담(전기요금·원가)",
@@ -49,7 +49,7 @@ export const PERSONAS = [
     accent: "var(--p-kepco)",
     accentBg: "var(--p-kepco-bg)",
     emoji: "⚡",
-    photo: "",
+    photo: "assets/personas/kepco.png",
     priorities: [
       "재무구조 개선(누적적자)",
       "요금 정상화(원가주의)",
@@ -66,7 +66,7 @@ export const PERSONAS = [
     accent: "var(--p-kogas)",
     accentBg: "var(--p-kogas-bg)",
     emoji: "🔥",
-    photo: "",
+    photo: "assets/personas/kogas.png",
     priorities: [
       "LNG 도입·수급 안정",
       "미수금 회수",

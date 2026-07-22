@@ -3,7 +3,8 @@
 import { getState, setState, nextId, resetNegotiation } from "./lib/store.js";
 import { PERSONA_BY_ID } from "./data/personas.js";
 import { KB_BY_PERSONA } from "./data/knowledgeBase.js";
-import { generateReply, seedReplyFor, isLiveMode } from "./lib/anthropic.js";
+import { generateReply, seedReplyFor, generateReport, seedReportFor, isLiveMode } from "./lib/anthropic.js";
+import { deriveReactions } from "./lib/reactions.js";
 
 export function togglePersona(id) {
   const { selectedIds } = getState();
@@ -29,6 +30,34 @@ export function goToSelect() {
 
 export function goToReport() {
   setState({ screen: "report" });
+  ensureReport();
+}
+
+// 리포트가 아직 없으면 생성(라이브면 LLM 1회 호출, 아니면 시드 폴백). 이미 있으면 스킵.
+export async function ensureReport() {
+  const st = getState();
+  if (st.report || st.reportLoading) return;
+
+  const { selectedIds, messages, acceptability, draftText } = st;
+  const reactions = deriveReactions(messages, acceptability);
+  const ids = selectedIds.filter((id) => reactions[id]);
+  const personas = ids.map((id) => PERSONA_BY_ID[id]);
+
+  if (!personas.length) return;
+
+  if (!isLiveMode()) {
+    setState({ report: seedReportFor({ draftText, personas, reactions }) });
+    return;
+  }
+
+  setState({ reportLoading: true });
+  const transcript = buildTranscript();
+  const { report, error } = await generateReport({ draftText, personas, reactions, transcript });
+  setState({
+    reportLoading: false,
+    report: report || seedReportFor({ draftText, personas, reactions }),
+    notice: error ? `⚠️ 리포트 생성 실패 — 시드 데이터로 대체했습니다. (${error})` : getState().notice,
+  });
 }
 
 // 현재까지의 메시지를 회의록(transcript) 형태로 변환
@@ -132,4 +161,5 @@ export async function sendMessage(text) {
 // 협상 종료 → 리포트
 export function endNegotiation() {
   setState({ screen: "report" });
+  ensureReport();
 }

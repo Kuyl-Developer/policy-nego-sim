@@ -32,6 +32,10 @@ const state = {
   pendingIds: [], // 이번 라운드에서 아직 답변 전인 페르소나(타이핑 표시용)
   chatInput: "", // 입력창 임시 값(리렌더와 무관하게 유지)
 
+  // ── 평가·리포트(화면 ③) 상태 ──────────────────────────────────────
+  report: null, // 생성된 리포트 객체(overallSummary/subscores/stakeholderOpinions/painPoints/strategyImprovements)
+  reportLoading: false, // 리포트 생성(라이브 호출) 진행 중 여부
+
   notice: "", // 상단 배너 안내(오류 등)
 };
 
@@ -65,6 +69,8 @@ export function resetNegotiation() {
   state.negotiating = false;
   state.pendingIds = [];
   state.chatInput = "";
+  state.report = null;
+  state.reportLoading = false;
 }
 
 export { DEFAULT_DRAFT };

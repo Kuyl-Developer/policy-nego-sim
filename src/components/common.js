@@ -13,7 +13,19 @@ export function avatar(persona, { sm = false } = {}) {
   const cls = "avatar" + (sm ? " avatar--sm" : "");
   const style = accentVars(persona);
   if (persona.photo) {
-    return h("div", { class: cls, style }, h("img", { src: persona.photo, alt: persona.name }));
+    // 이미지 로드 실패(파일 미배치 등) 시 이모지 플레이스홀더로 자동 폴백
+    const img = h("img", {
+      src: persona.photo,
+      alt: persona.name,
+      onError: (e) => {
+        const box = e.target.parentNode;
+        if (box) {
+          box.removeChild(e.target);
+          box.textContent = persona.emoji;
+        }
+      },
+    });
+    return h("div", { class: cls, style }, img);
   }
   return h("div", { class: cls, style }, persona.emoji);
 }

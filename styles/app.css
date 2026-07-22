@@ -175,16 +175,18 @@ a { color: inherit; }
 
 /* Person-photo persona icon (avatar) */
 .avatar {
+  position: relative;
   flex: 0 0 auto;
-  width: 56px; height: 56px; border-radius: 16px;
+  width: 56px; height: 56px; border-radius: 50%;
   display: grid; place-items: center;
   font-size: 26px;
   border: 2px solid var(--accent);
   background: var(--accent-bg);
   overflow: hidden;
 }
-.avatar--sm { width: 40px; height: 40px; border-radius: 12px; font-size: 20px; }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar--sm { width: 40px; height: 40px; border-radius: 50%; font-size: 20px; }
+/* 사진은 원형 박스를 꽉 채우고 중앙 기준으로 cover 크롭 (grid place-items 영향 배제) */
+.avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 
 .persona-card__body { min-width: 0; }
 .persona-card__name { font-weight: 800; font-size: 16px; letter-spacing: -0.01em; }
@@ -330,27 +332,6 @@ a { color: inherit; }
 /* Report (screen 3)                                                     */
 /* --------------------------------------------------------------------- */
 
-.scorecard { padding: 22px; display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
-.score-ring {
-  --v: 0; width: 132px; height: 132px; border-radius: 50%;
-  background: conic-gradient(var(--navy) calc(var(--v) * 1%), var(--surface-2) 0);
-  display: grid; place-items: center; flex: 0 0 auto;
-}
-.score-ring__inner {
-  width: 104px; height: 104px; border-radius: 50%; background: var(--surface);
-  display: grid; place-items: center; text-align: center; box-shadow: var(--shadow-sm);
-}
-.score-ring__num { font-size: 34px; font-weight: 800; line-height: 1; }
-.score-ring__label { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
-.scorecard__summary { flex: 1; min-width: 240px; }
-.scorecard__summary h2 { margin: 0 0 6px; font-size: 18px; }
-.scorecard__summary p { margin: 0; color: var(--ink-2); font-size: 14px; }
-
-.metrics { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-.metric { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px; }
-.metric__v { font-weight: 800; font-size: 18px; }
-.metric__k { font-size: 12px; color: var(--ink-3); }
-
 /* Acceptability bars */
 .accept-row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
 .accept-row:last-child { border-bottom: none; }
@@ -362,6 +343,30 @@ a { color: inherit; }
 .accept-row__pct { width: 42px; text-align: right; font-weight: 800; font-size: 13.5px; flex: 0 0 auto; }
 
 .section-title { font-size: 16px; font-weight: 800; margin: 28px 0 12px; letter-spacing: -0.01em; }
+
+/* --------------------------------------------------------------------- */
+/* Report screen — subscores + stakeholder opinions                      */
+/* --------------------------------------------------------------------- */
+
+.subscore-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 900px) { .subscore-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .subscore-grid { grid-template-columns: 1fr; } }
+.subscore { padding: 14px 16px; }
+.subscore__head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.subscore__label { font-weight: 700; font-size: 13px; }
+.subscore__num { font-weight: 800; font-size: 18px; }
+.subscore .bar__fill { background: var(--navy); }
+.subscore__note { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; line-height: 1.4; }
+
+.opinion-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 12px 0 20px; }
+@media (max-width: 760px) { .opinion-grid { grid-template-columns: 1fr; } }
+.opinion-card { padding: 14px 16px; }
+.opinion-card__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.opinion-card__head > div:nth-child(2) { flex: 1; }
+.opinion-card__body { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.55; }
+
+.pain-list { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); line-height: 1.7; }
+.pain-list li { margin-bottom: 4px; }
 
 .improve-list { display: flex; flex-direction: column; gap: 10px; }
 .improve {
