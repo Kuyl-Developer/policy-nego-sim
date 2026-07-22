@@ -2,7 +2,7 @@
 
 import { h, mount } from "./lib/dom.js";
 import { getState, setState, subscribe } from "./lib/store.js";
-import { getApiKey, setApiKey, isLiveMode } from "./lib/anthropic.js";
+import { getApiKey, setApiKey, isLiveMode, MODEL } from "./lib/anthropic.js";
 import { renderSelectScreen } from "./screens/selectScreen.js";
 import { renderChatScreen } from "./screens/chatScreen.js";
 import { renderReportScreen } from "./screens/reportScreen.js";
@@ -54,7 +54,7 @@ function keyBar() {
   const live = isLiveMode();
   const input = h("input", {
     type: "password",
-    placeholder: "Anthropic API 키 입력 (선택) — 비워두면 시드 모드로 동작",
+    placeholder: "Letsur AI Gateway 키 입력 (선택) — 비워두면 시드 모드로 동작",
     value: getApiKey(),
     autocomplete: "off",
   });
@@ -78,7 +78,7 @@ function keyBar() {
       "span",
       { class: "keybar__status" },
       h("span", { class: "dot " + (live ? "dot--live" : "dot--mock") }),
-      live ? "라이브 모드 (claude-opus-4-8)" : "시드(오프라인) 모드"
+      live ? `라이브 모드 · Letsur Gateway (${MODEL})` : "시드(오프라인) 모드"
     ),
     input,
     save

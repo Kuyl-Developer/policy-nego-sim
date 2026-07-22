@@ -1,7 +1,9 @@
-// Anthropic(Claude) 연동 계층 — 다자 협상 대화
+// Letsur AI Gateway(Claude 호환) 연동 계층 — 다자 협상 대화
 // ─────────────────────────────────────────────────────────────────────────
-// - 라이브 모드: 브라우저에서 공식 SDK(@anthropic-ai/sdk)를 esm.sh 로 로드해 사용.
-//   모델 기본값 claude-opus-4-8, adaptive thinking 사용.
+// - 라이브 모드: 브라우저에서 공식 Anthropic SDK(@anthropic-ai/sdk)를 esm.sh 로 로드하되,
+//   baseURL 을 Letsur AI Gateway(https://gw.letsur.ai) 로 지정해 게이트웨이 키로 호출.
+//   게이트웨이가 Anthropic Messages 포맷을 그대로 지원하므로 SDK 사용법은 동일합니다.
+//   (가이드: https://platform.letsur.ai/guide)
 // - 시드 모드: API 키가 없으면 손으로 작성한 시드 반응으로 '초기 1회 미리보기'만 제공.
 //   실제 다중 턴 대화는 라이브 모드에서만 이어집니다.
 //
@@ -12,7 +14,11 @@ import { buildChatSystemPrompt, buildChatUserPrompt } from "./prompts.js";
 import { SEED_REACTIONS, adjustAcceptability } from "../data/seedReactions.js";
 
 const SDK_URL = "https://esm.sh/@anthropic-ai/sdk@0.68.0";
-const MODEL = "claude-opus-4-8";
+// Letsur AI Gateway 엔드포인트. Anthropic SDK 는 여기에 /v1 을 자동으로 붙입니다.
+const GATEWAY_BASE_URL = "https://gw.letsur.ai";
+// 가이드에서 동작이 확인된 모델. 더 상위 모델(claude-opus-4-8 등)이 필요하면
+// Space → AI Gateway → 카탈로그 탭에서 사용 가능한 모델 ID로 교체하세요.
+export const MODEL = "claude-sonnet-4-6";
 const KEY_STORAGE = "ens-sim.apiKey";
 
 export function getApiKey() {
@@ -47,7 +53,7 @@ async function getClient(apiKey) {
       });
   }
   const Anthropic = await _clientPromise;
-  return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  return new Anthropic({ apiKey, baseURL: GATEWAY_BASE_URL, dangerouslyAllowBrowser: true });
 }
 
 // 모델 텍스트 응답에서 JSON 객체만 안전하게 추출
