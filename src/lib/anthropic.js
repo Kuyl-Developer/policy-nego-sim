@@ -125,6 +125,22 @@ function friendlyError(err) {
   return msg || "API 호출 실패";
 }
 
+// 시드(오프라인) 초기 반응 → 대화 메시지 형태로 변환 (첫 라운드 미리보기용)
+export function seedReplyFor(persona, draftText) {
+  const base = SEED_REACTIONS[persona.id];
+  return {
+    personaId: persona.id,
+    role: "persona",
+    text: base.summary,
+    stance: base.stance,
+    acceptability: adjustAcceptability(base.acceptability, draftText, persona.id),
+    citationIds: base.citationIds.slice(),
+    concerns: base.risks.slice(0, 3),
+    limitation: base.limitation || "",
+    source: "seed",
+  };
+}
+
 /**
  * 협상 대화에서 한 페르소나의 다음 발언 생성(라이브 전용).
  * @param {object} p
