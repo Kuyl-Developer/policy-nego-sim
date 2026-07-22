@@ -6,8 +6,9 @@ env.txt
 *.key
 
 # 런타임에 불필요한 개발/빌드 전용 자원 (배포 용량 최소화)
-data/
-scripts/
+# 주의: 앞에 슬래시 없는 `data/`는 모든 깊이(src/data 등)를 매칭하므로 반드시 루트 앵커링
+/data/
+/scripts/
 *.py
 __pycache__/
 .claude/
