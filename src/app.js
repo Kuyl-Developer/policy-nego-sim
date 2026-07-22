@@ -109,5 +109,20 @@ function render() {
   mount(root, h("div", {}, header(state.screen), main));
 }
 
+// 로컬 개발용 키 자동 주입(선택) — src/config.local.js 가 있으면 키를 불러와 저장.
+// 파일이 없으면 조용히 무시하고 시드 모드로 시작합니다.
+// (config.local.js 는 .gitignore 에 등록되어 커밋되지 않습니다.)
+async function bootstrapLocalKey() {
+  try {
+    const mod = await import("./config.local.js");
+    const key = mod?.LETSUR_API_KEY;
+    if (key && key !== "여기에-Letsur-Gateway-키-붙여넣기" && !getApiKey()) {
+      setApiKey(key);
+    }
+  } catch {
+    /* config.local.js 없음 — 무시(시드 모드로 시작) */
+  }
+}
+
 subscribe(render);
-render();
+bootstrapLocalKey().finally(render);

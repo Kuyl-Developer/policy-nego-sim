@@ -2,6 +2,7 @@
 .env
 .env.local
 *.key
+src/config.local.js
 
 # OS
 .DS_Store
