@@ -1,0 +1,13 @@
+# 민감 파일 — 배포물에 절대 포함 금지 (git에서도 이미 제외되지만 이중 안전장치)
+src/config.local.js
+.env
+.env.*
+env.txt
+*.key
+
+# 런타임에 불필요한 개발/빌드 전용 자원 (배포 용량 최소화)
+data/
+scripts/
+*.py
+__pycache__/
+.claude/
