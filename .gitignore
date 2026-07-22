@@ -16,5 +16,13 @@ node_modules/
 dist/
 *.log
 
+# Python
+__pycache__/
+*.pyc
+
+# Local data working files (커밋 대상 아님 — 각자 로컬에서 생성)
+data/candidates.csv
+data/sources.csv
+
 # Temp
 _docx_dump.txt

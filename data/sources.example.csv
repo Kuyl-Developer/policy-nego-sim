@@ -1,0 +1,6 @@
+﻿persona,source_type,org,feed_type,url,keywords,active,note
+기후부,보도자료,기후에너지환경부,html,https://example.go.kr/climate/press,감축|NDC|재생에너지|탄소중립,Y,정책자료 페이지는 RSS가 없으면 html + 사이트별 파서 필요
+기후부,언론기사,○○신문 환경면,rss,https://example.com/rss/environment.xml,감축|재생에너지|정의로운 전환,Y,언론사 RSS 예시(실제 피드 URL로 교체)
+산업부,보도자료,산업통상자원부,html,https://example.go.kr/industry/press,전력수급|전기요금|전원믹스,Y,
+한전,기고,전력경제 저널,rss,https://example.com/rss/power-econ.xml,요금|원가|재무|계통,Y,기고·논문은 t1로 자동 분류
+가스공사,언론기사,○○에너지신문,rss,https://example.com/rss/energy.xml,LNG|미수금|가스|브릿지,Y,
