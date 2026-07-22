@@ -116,11 +116,13 @@ async function bootstrapLocalKey() {
   try {
     const mod = await import("./config.local.js");
     const key = mod?.LETSUR_API_KEY;
-    if (key && key !== "여기에-Letsur-Gateway-키-붙여넣기" && !getApiKey()) {
+    // config.local.js 가 있으면 그 키를 '우선' 적용한다(로컬에 저장된 이전 키를 덮어씀).
+    // 이렇게 해야 잘못 저장된 키(401) 때문에 파일의 올바른 키가 무시되는 문제가 없다.
+    if (key && key !== "여기에-Letsur-Gateway-키-붙여넣기" && key !== getApiKey()) {
       setApiKey(key);
     }
   } catch {
-    /* config.local.js 없음 — 무시(시드 모드로 시작) */
+    /* config.local.js 없음 — 무시(저장된 키 또는 시드 모드로 시작) */
   }
 }
 
