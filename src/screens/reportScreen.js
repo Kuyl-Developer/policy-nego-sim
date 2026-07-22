@@ -6,6 +6,24 @@ import { PERSONA_BY_ID } from "../data/personas.js";
 import { avatar, accentVars, stanceBadge } from "../components/common.js";
 import { goToSelect } from "../actions.js";
 
+// 대화 메시지에서 페르소나별 '최종 입장'을 도출(마지막 발언 기준)
+function deriveReactions(messages, acceptability) {
+  const byId = {};
+  for (const m of messages) {
+    if (m.role !== "persona") continue;
+    byId[m.personaId] = {
+      personaId: m.personaId,
+      stance: m.stance,
+      acceptability: Number.isFinite(acceptability[m.personaId]) ? acceptability[m.personaId] : m.acceptability,
+      summary: m.text,
+      risks: m.concerns || [],
+      citationIds: m.citationIds || [],
+      limitation: m.limitation || "",
+    };
+  }
+  return byId;
+}
+
 function overallScore(reactions, ids) {
   if (!ids.length) return 0;
   const sum = ids.reduce((a, id) => a + (reactions[id]?.acceptability || 0), 0);
@@ -110,18 +128,21 @@ function improvementItems(reactions, ids) {
 }
 
 export function renderReportScreen() {
-  const { selectedIds, reactions } = getState();
-  const score = overallScore(reactions, selectedIds);
+  const { selectedIds, messages, acceptability, round } = getState();
+  const reactions = deriveReactions(messages, acceptability);
+  // 대화가 있었던 페르소나만 평가 대상에 포함
+  const ids = selectedIds.filter((id) => reactions[id]);
+  const score = overallScore(reactions, ids);
 
   const head = h(
     "div",
     { class: "screen-head" },
     h("div", { class: "eyebrow" }, "STEP 3 · 평가·개선 리포트"),
-    h("h1", {}, "커뮤니케이션 전략 평가"),
-    h("p", {}, "종합 수용도, 이해관계자별 수용도, 그리고 발표 전 반영할 개선 전략입니다.")
+    h("h1", {}, "협상 결과 평가"),
+    h("p", {}, `${round}라운드 협상 결과입니다. 종합 수용도, 이해관계자별 최종 입장, 그리고 후속 협상에 반영할 개선 전략입니다.`)
   );
 
-  const rows = selectedIds.map((id) => acceptabilityRow(PERSONA_BY_ID[id], reactions[id]));
+  const rows = ids.map((id) => acceptabilityRow(PERSONA_BY_ID[id], reactions[id]));
   const acceptCard = h(
     "div",
     { class: "card", style: { padding: "18px 22px", marginTop: "16px" } },
@@ -129,7 +150,7 @@ export function renderReportScreen() {
     rows
   );
 
-  const improvements = improvementItems(reactions, selectedIds);
+  const improvements = improvementItems(reactions, ids);
   const improveList = h(
     "div",
     { class: "improve-list" },
@@ -151,7 +172,7 @@ export function renderReportScreen() {
   const toolbar = h(
     "div",
     { class: "toolbar toolbar--between" },
-    h("button", { class: "btn btn--ghost", onClick: () => setState({ screen: "chat" }) }, "← 반응 다시 보기"),
+    h("button", { class: "btn btn--ghost", onClick: () => setState({ screen: "chat" }) }, "← 협상으로 돌아가기"),
     h("button", { class: "btn btn--primary", onClick: () => goToSelect() }, "새 시뮬레이션 시작")
   );
 
@@ -160,7 +181,7 @@ export function renderReportScreen() {
     { class: "fade-in" },
     head,
     scorecard(score),
-    metrics(reactions, selectedIds),
+    metrics(reactions, ids),
     acceptCard,
     h("div", { class: "section-title" }, "개선 전략 · Improvement"),
     improveList,

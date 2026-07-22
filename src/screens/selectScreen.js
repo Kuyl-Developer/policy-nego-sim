@@ -4,7 +4,7 @@ import { h } from "../lib/dom.js";
 import { PERSONAS } from "../data/personas.js";
 import { getState } from "../lib/store.js";
 import { avatar, accentVars } from "../components/common.js";
-import { togglePersona, setDraft, startSimulation } from "../actions.js";
+import { togglePersona, setDraft, startNegotiation } from "../actions.js";
 
 function personaCard(persona, selected) {
   return h(
@@ -75,7 +75,7 @@ export function renderSelectScreen() {
     {
       class: "btn btn--primary btn--lg",
       disabled: selectedIds.length === 0,
-      onClick: () => startSimulation(),
+      onClick: () => startNegotiation(),
     },
     selectedIds.length === 0
       ? "페르소나를 선택하세요"

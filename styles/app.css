@@ -221,8 +221,46 @@ a { color: inherit; }
 
 .chat { display: flex; flex-direction: column; gap: 16px; }
 
+/* 실시간 수용도 미터 스트립 */
+.nego-meters { padding: 14px 18px; margin-bottom: 16px; }
+.nego-meters__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 22px; }
+.nego-meter { display: flex; align-items: center; gap: 10px; }
+.nego-meter__main { flex: 1; min-width: 0; }
+.nego-meter__top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.nego-meter__name { font-weight: 700; font-size: 13px; }
+.nego-meter__pct { margin-left: auto; font-weight: 800; font-size: 13px; }
+
+/* 대화 로그(스크롤 영역) */
+.nego-log {
+  display: flex; flex-direction: column; gap: 16px;
+  max-height: 56vh; overflow-y: auto;
+  padding: 4px 6px 4px 2px;
+}
+
 .chat-msg { display: flex; gap: 12px; }
 .chat-msg__body { min-width: 0; flex: 1; }
+
+/* 사용자(우리 측) 말풍선 레이아웃 — 우측 정렬 (시각 스타일은 .bubble 기본 규칙 뒤에 정의) */
+.chat-msg--user { flex-direction: row-reverse; }
+.chat-msg--user .chat-msg__body { display: flex; justify-content: flex-end; }
+
+/* 시드 미리보기 태그 */
+.seed-tag {
+  font-size: 10.5px; font-weight: 700; color: var(--warn);
+  background: #fbf3dc; border: 1px solid #efdca9; border-radius: 6px; padding: 1px 6px;
+}
+
+/* 입력창 */
+.composer { display: flex; gap: 10px; align-items: flex-end; margin-top: 16px; }
+.composer__input {
+  flex: 1; resize: vertical; min-height: 46px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  padding: 12px 14px; font-size: 14px; font-family: inherit; line-height: 1.5;
+  background: var(--surface);
+}
+.composer__input:focus { outline: none; border-color: var(--navy-soft); }
+.composer__input:disabled { background: var(--surface-2); color: var(--ink-3); }
+.composer .btn { flex: 0 0 auto; height: 46px; }
 
 /* Persona bubble — pastel accent only on the border */
 .bubble {
@@ -246,6 +284,15 @@ a { color: inherit; }
 .stance--concern { background: #fbeae9; color: #a83f3b; }
 
 .bubble__summary { font-size: 14px; color: var(--ink); margin: 0 0 12px; }
+
+/* 사용자(우리 측) 말풍선 — 네이비 배경 (기본 .bubble 규칙을 덮어써야 하므로 뒤에 정의) */
+.bubble--user {
+  background: var(--navy); border: 1px solid var(--navy);
+  color: #fff; max-width: 76%;
+}
+.bubble__head--user { margin-bottom: 6px; }
+.bubble--user .bubble__name { color: #dfe6f5; font-size: 12px; font-weight: 700; }
+.bubble__summary--user { color: #fff; white-space: pre-wrap; margin: 0; }
 
 .risk-list { margin: 0 0 12px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .risk-list li { display: flex; gap: 8px; font-size: 13.5px; color: var(--ink-2); }
