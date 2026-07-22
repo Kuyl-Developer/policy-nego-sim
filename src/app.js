@@ -1,0 +1,113 @@
+// 앱 진입점 — 헤더/스텝/모드 배너 + 화면 라우팅
+
+import { h, mount } from "./lib/dom.js";
+import { getState, setState, subscribe } from "./lib/store.js";
+import { getApiKey, setApiKey, isLiveMode } from "./lib/anthropic.js";
+import { renderSelectScreen } from "./screens/selectScreen.js";
+import { renderChatScreen } from "./screens/chatScreen.js";
+import { renderReportScreen } from "./screens/reportScreen.js";
+
+const STEPS = [
+  { id: "select", n: 1, label: "페르소나 선택" },
+  { id: "chat", n: 2, label: "모의 협상" },
+  { id: "report", n: 3, label: "평가·리포트" },
+];
+
+function header(screen) {
+  const order = { select: 0, chat: 1, report: 2 };
+  const cur = order[screen] ?? 0;
+
+  const steps = STEPS.map((s, i) => {
+    const cls =
+      "step" + (i === cur ? " is-active" : "") + (i < cur ? " is-done" : "");
+    return h(
+      "div",
+      { class: cls },
+      h("span", { class: "step__num" }, i < cur ? "✓" : String(s.n)),
+      h("span", {}, s.label)
+    );
+  });
+
+  return h(
+    "header",
+    { class: "app-header" },
+    h(
+      "div",
+      { class: "app-header__inner" },
+      h(
+        "div",
+        { class: "brand" },
+        h("div", { class: "brand__mark" }, "E"),
+        h(
+          "div",
+          {},
+          h("div", { class: "brand__title" }, "E&S 커뮤니케이션 모의 협상"),
+          h("div", { class: "brand__sub" }, "대외 발표 전 이해관계자 반응·리스크 사전 점검")
+        )
+      ),
+      h("div", { class: "steps" }, steps)
+    )
+  );
+}
+
+function keyBar() {
+  const live = isLiveMode();
+  const input = h("input", {
+    type: "password",
+    placeholder: "Anthropic API 키 입력 (선택) — 비워두면 시드 모드로 동작",
+    value: getApiKey(),
+    autocomplete: "off",
+  });
+
+  const save = h(
+    "button",
+    {
+      class: "btn",
+      onClick: () => {
+        setApiKey(input.value.trim());
+        setState({ notice: "" }); // 재렌더 트리거
+      },
+    },
+    "저장"
+  );
+
+  return h(
+    "div",
+    { class: "card keybar" },
+    h(
+      "span",
+      { class: "keybar__status" },
+      h("span", { class: "dot " + (live ? "dot--live" : "dot--mock") }),
+      live ? "라이브 모드 (claude-opus-4-8)" : "시드(오프라인) 모드"
+    ),
+    input,
+    save
+  );
+}
+
+function noticeBar(notice) {
+  if (!notice) return null;
+  return h("div", { class: "callout", style: { marginBottom: "16px" } }, notice);
+}
+
+function renderScreen(screen) {
+  if (screen === "chat") return renderChatScreen();
+  if (screen === "report") return renderReportScreen();
+  return renderSelectScreen();
+}
+
+function render() {
+  const state = getState();
+  const root = document.getElementById("app");
+  const main = h(
+    "main",
+    { class: "app-main" },
+    keyBar(),
+    noticeBar(state.notice),
+    renderScreen(state.screen)
+  );
+  mount(root, h("div", {}, header(state.screen), main));
+}
+
+subscribe(render);
+render();
