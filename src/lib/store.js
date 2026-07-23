@@ -25,7 +25,7 @@ const state = {
   draftText: DEFAULT_DRAFT, // 협상의 오프닝(우리 측 첫 발언)
 
   // ── 다자 협상(라운드테이블) 상태 ──────────────────────────────────
-  messages: [], // {id, role:"user"|"persona", personaId?, text, stance?, acceptability?, citationIds?, concerns?, limitation?, source?}
+  messages: [], // {id, role:"user"|"persona"|"system", personaId?, text, stance?, acceptability?, citationIds?, concerns?, limitation?, source?} — system은 합류 등 중앙 안내
   acceptability: {}, // personaId -> 최신 수용도(0~100)
   round: 0, // 진행된 라운드 수(우리 측 발언 횟수)
   negotiating: false, // 라운드 생성 중 여부
@@ -35,6 +35,12 @@ const state = {
   // ── 평가·리포트(화면 ③) 상태 ──────────────────────────────────────
   report: null, // 생성된 리포트 객체(overallSummary/subscores/stakeholderOpinions/painPoints/strategyImprovements)
   reportLoading: false, // 리포트 생성(라이브 호출) 진행 중 여부
+
+  // ── "제안 반영해 초안 수정" 상태 ───────────────────────────────────
+  reviseSelected: {}, // suggestionId -> true/false (리포트 준비 시 전체 선택으로 초기화)
+  revising: false, // 초안 수정(라이브 호출) 진행 중 여부
+  revisedDraft: "", // 수정된 초안 결과
+  reviseError: "", // 초안 수정 실패 안내
 
   notice: "", // 상단 배너 안내(오류 등)
 };
@@ -71,6 +77,10 @@ export function resetNegotiation() {
   state.chatInput = "";
   state.report = null;
   state.reportLoading = false;
+  state.reviseSelected = {};
+  state.revising = false;
+  state.revisedDraft = "";
+  state.reviseError = "";
 }
 
 export { DEFAULT_DRAFT };

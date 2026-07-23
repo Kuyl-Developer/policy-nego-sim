@@ -4,17 +4,57 @@
 
 import { h } from "../lib/dom.js";
 import { getState } from "../lib/store.js";
-import { PERSONA_BY_ID } from "../data/personas.js";
-import { avatar, accentVars, stanceBadge, citationChips } from "../components/common.js";
-import { goToSelect, endNegotiation, sendMessage, setChatInput } from "../actions.js";
+import { PERSONAS, PERSONA_BY_ID } from "../data/personas.js";
+import { avatar, accentVars, stanceBadge, citationChips, acceptabilityChange } from "../components/common.js";
+import { goToSelect, endNegotiation, sendMessage, setChatInput, invitePersona } from "../actions.js";
 import { isLiveMode } from "../lib/anthropic.js";
 
-// 상단: 페르소나별 실시간 수용도 미터
-function meterStrip(selectedIds, acceptability, lastStance) {
+// 수용도 구간별 색조(낮음=경고/보통/높음). fill 색상을 값에 따라 바꿔 진척을 직관화한다.
+function accLevel(acc) {
+  if (acc >= 67) return "high";
+  if (acc >= 34) return "mid";
+  return "low";
+}
+
+// 미참여 페르소나를 테이블로 초대하는 행. 도중에 제3자를 불러 직접 입장을 듣는다.
+function inviteRow(selectedIds, negotiating) {
+  const others = PERSONAS.filter((p) => !selectedIds.includes(p.id));
+  if (others.length === 0) return null; // 전원 참여 중이면 미표시
+  const chips = others.map((p) =>
+    h(
+      "button",
+      {
+        class: "invite-chip",
+        style: accentVars(p),
+        disabled: negotiating,
+        title: `${p.name} (${p.org}) 초대`,
+        onClick: () => invitePersona(p.id),
+      },
+      avatar(p, { sm: true }),
+      h("span", { class: "invite-chip__name" }, p.name),
+      h("span", { class: "invite-chip__plus" }, "+")
+    )
+  );
+  return h(
+    "div",
+    { class: "nego-invite" },
+    h("span", { class: "nego-invite__label" }, "테이블로 초대"),
+    h("div", { class: "nego-invite__chips" }, chips)
+  );
+}
+
+// 협상 합류 등 중앙 정렬 시스템 안내
+function systemNote(m) {
+  return h("div", { class: "sys-note-row" }, h("span", { class: "sys-note" }, m.text));
+}
+
+// 상단: 페르소나별 실시간 수용도 미터 (실제 % 에 따라 바가 채워짐)
+function meterStrip(selectedIds, acceptability, lastStance, negotiating) {
   const rows = selectedIds.map((id) => {
     const p = PERSONA_BY_ID[id];
     const acc = acceptability[id];
     const has = Number.isFinite(acc);
+    const pct = has ? Math.max(0, Math.min(100, acc)) : 0;
     return h(
       "div",
       { class: "nego-meter", style: accentVars(p) },
@@ -27,12 +67,29 @@ function meterStrip(selectedIds, acceptability, lastStance) {
           { class: "nego-meter__top" },
           h("span", { class: "nego-meter__name" }, p.name),
           lastStance[id] ? stanceBadge(lastStance[id]) : null,
-          h("span", { class: "nego-meter__pct" }, has ? `${acc}%` : "—")
+          h(
+            "span",
+            { class: `nego-meter__pct${has ? ` is-${accLevel(pct)}` : " is-empty"}` },
+            has ? `${acc}%` : "—"
+          )
         ),
         h(
           "div",
-          { class: "bar" },
-          h("div", { class: "bar__fill", style: { width: `${has ? acc : 0}%` } })
+          {
+            class: "bar bar--meter",
+            role: "progressbar",
+            "aria-valuenow": String(pct),
+            "aria-valuemin": "0",
+            "aria-valuemax": "100",
+            "aria-label": `${p.name} 수용도`,
+          },
+          h(
+            "div",
+            {
+              class: `bar__fill${has ? ` is-${accLevel(pct)}` : ""}`,
+              style: { width: `${pct}%` },
+            }
+          )
         )
       )
     );
@@ -41,7 +98,8 @@ function meterStrip(selectedIds, acceptability, lastStance) {
     "div",
     { class: "card nego-meters" },
     h("div", { class: "block-label" }, "실시간 수용도 · Persuasion meter"),
-    h("div", { class: "nego-meters__grid" }, rows)
+    h("div", { class: "nego-meters__grid" }, rows),
+    inviteRow(selectedIds, negotiating)
   );
 }
 
@@ -62,7 +120,8 @@ function userBubble(m) {
   );
 }
 
-function personaBubble(m) {
+// prevAcc: 같은 페르소나의 직전 응답 수용도(없으면 null) → 변화 뱃지에 사용
+function personaBubble(m, prevAcc) {
   const persona = PERSONA_BY_ID[m.personaId];
   const body = [
     h(
@@ -73,8 +132,12 @@ function personaBubble(m) {
       stanceBadge(m.stance),
       m.source === "seed" ? h("span", { class: "seed-tag" }, "시드 미리보기") : null
     ),
-    h("p", { class: "bubble__summary" }, m.text),
   ];
+
+  const change = acceptabilityChange(m.acceptability, prevAcc);
+  if (change) body.push(change);
+
+  body.push(h("p", { class: "bubble__summary" }, m.text));
 
   if (m.concerns && m.concerns.length) {
     body.push(h("div", { class: "block-label" }, "남은 우려 · Concern"));
@@ -141,10 +204,19 @@ export function renderChatScreen() {
     )
   );
 
-  const meters = meterStrip(selectedIds, acceptability, lastStance);
+  const meters = meterStrip(selectedIds, acceptability, lastStance, negotiating);
 
-  // 대화 로그
-  const items = messages.map((m) => (m.role === "user" ? userBubble(m) : personaBubble(m)));
+  // 대화 로그 (system=중앙 안내, user=우리 측, persona=이해관계자)
+  // 페르소나별 직전 응답 수용도를 추적해 각 답변에 '이전→현재' 변화 뱃지를 붙인다.
+  const seenAcc = {};
+  const items = messages.map((m) => {
+    if (m.role === "system") return systemNote(m);
+    if (m.role === "user") return userBubble(m);
+    const prevAcc = Number.isFinite(seenAcc[m.personaId]) ? seenAcc[m.personaId] : null;
+    const node = personaBubble(m, prevAcc);
+    if (Number.isFinite(m.acceptability)) seenAcc[m.personaId] = m.acceptability;
+    return node;
+  });
   // 이번 라운드에서 아직 답변 전인 페르소나의 타이핑 표시
   if (negotiating) {
     for (const id of pendingIds) items.push(typingBubble(PERSONA_BY_ID[id]));

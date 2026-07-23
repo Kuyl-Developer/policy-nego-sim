@@ -40,6 +40,29 @@ export function stanceBadge(stance) {
   return h("span", { class: `stance stance--${stance}` }, STANCE_LABEL[stance] || "검토");
 }
 
+// 수용도 변화 뱃지 — 이번 응답의 수용도가 직전 응답 대비 얼마나 오르내렸는지 표시.
+// prev 가 없으면(해당 페르소나의 첫 응답) '첫 평가'로 표기한다.
+export function acceptabilityChange(current, prev) {
+  if (!Number.isFinite(current)) return null;
+  const hasPrev = Number.isFinite(prev);
+  const diff = hasPrev ? current - prev : 0;
+  const dir = !hasPrev ? "first" : diff > 0 ? "up" : diff < 0 ? "down" : "same";
+  const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "—";
+  return h(
+    "div",
+    { class: `acc-change acc-change--${dir}`, title: "직전 응답 대비 수용도 변화" },
+    h("span", { class: "acc-change__label" }, "수용도"),
+    hasPrev ? h("span", { class: "acc-change__prev" }, `${prev}%`) : null,
+    hasPrev ? h("span", { class: "acc-change__to" }, "→") : null,
+    h("span", { class: "acc-change__cur" }, `${current}%`),
+    h(
+      "span",
+      { class: "acc-change__diff" },
+      hasPrev ? `${arrow} ${Math.abs(diff)}%p` : "첫 평가"
+    )
+  );
+}
+
 // 근거(출처) 칩 목록 — 제목 칩 + 링크 + 신뢰도 티어
 export function citationChips(citationIds) {
   const chips = (citationIds || [])

@@ -16,6 +16,8 @@ import {
   buildKbBlock,
   buildReportSystemPrompt,
   buildReportUserPrompt,
+  buildRevisePrompt,
+  buildReviseUserPrompt,
   REPLY_SCHEMA,
   REPORT_SCHEMA,
 } from "./prompts.js";
@@ -368,4 +370,50 @@ export function seedReportFor({ draftText, personas, reactions }) {
     strategyImprovements: improvements,
     source: "seed",
   };
+}
+
+// 모델이 규칙을 어기고 코드펜스로 감싸 보낼 때를 대비한 방어적 벗기기
+function stripCodeFence(text) {
+  const trimmed = String(text || "").trim();
+  const m = trimmed.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/);
+  return (m ? m[1] : trimmed).trim();
+}
+
+/**
+ * 리포트에서 채택한 개선 제안만 반영해 원본 전략 초안을 다시 작성(라이브 전용).
+ * @param {object} p
+ * @param {string} p.draftText 원본 전략 초안
+ * @param {Array}  p.personas 협상에 참여한 페르소나 목록
+ * @param {Array}  p.suggestions 사용자가 채택한 제안 [{text}]
+ * @returns {Promise<{draft, error?}>}
+ */
+export async function generateRevision({ draftText, personas, suggestions }) {
+  const apiKey = getApiKey();
+  if (!apiKey || keyHasInvalidChars(apiKey)) {
+    return { draft: null, error: "API 키가 없거나 올바르지 않습니다." };
+  }
+  try {
+    const client = await getClient(apiKey);
+    const msg = await client.messages
+      .stream({
+        model: MODEL,
+        max_tokens: 4096,
+        thinking: { type: "adaptive" },
+        system: buildRevisePrompt(personas),
+        messages: [{ role: "user", content: buildReviseUserPrompt({ draftText, suggestions }) }],
+      })
+      .finalMessage();
+    const text = (msg?.content || []).find((b) => b.type === "text")?.text || "";
+    const draft = stripCodeFence(text);
+    if (!draft) return { draft: null, error: "수정된 초안이 비어 있습니다." };
+    return { draft };
+  } catch (err) {
+    return { draft: null, error: friendlyError(err) };
+  }
+}
+
+// 시드(오프라인) 폴백: API 없이, 채택한 제안 본문을 초안 끝에 그대로 덧붙인다(지어내지 않음).
+export function seedReviseFor({ draftText, suggestions }) {
+  const appendix = suggestions.map((s) => `- ${s.text}`).join("\n");
+  return `${draftText}\n\n## 반영된 개선 제안 (시드 모드 — API 키 입력 시 실제 초안 재작성)\n${appendix}`;
 }

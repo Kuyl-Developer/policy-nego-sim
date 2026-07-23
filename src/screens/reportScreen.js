@@ -5,7 +5,8 @@ import { getState, setState } from "../lib/store.js";
 import { PERSONA_BY_ID } from "../data/personas.js";
 import { avatar, accentVars, stanceBadge } from "../components/common.js";
 import { deriveReactions } from "../lib/reactions.js";
-import { goToSelect } from "../actions.js";
+import { buildSuggestions, buildProposalTimeline } from "../lib/suggestions.js";
+import { goToSelect, toggleSuggestion, reviseDraft, applyRevisedDraft } from "../actions.js";
 
 const SUBSCORE_LABEL = {
   persuasiveness: "설득력",
@@ -71,24 +72,152 @@ function opinionCard(persona, opinion, stance) {
   );
 }
 
-function improvementItem(it, i) {
-  const persona = it.personaId ? PERSONA_BY_ID[it.personaId] : null;
-  const tag = persona ? `→ ${persona.name}의 ${it.issue || "이슈"} 대응` : "";
+// 체크박스 한 항목 — 대상 페르소나가 있으면 아바타를 함께 표시
+function suggestionItem(s, selected, revising) {
+  const persona = s.personaId ? PERSONA_BY_ID[s.personaId] : null;
+  return h(
+    "label",
+    { class: `revise-item${selected ? " on" : ""}` },
+    h("input", {
+      type: "checkbox",
+      checked: selected,
+      disabled: revising,
+      onChange: () => toggleSuggestion(s.id),
+    }),
+    persona ? avatar(persona, { sm: true }) : null,
+    h("span", {}, s.text)
+  );
+}
+
+// "제안 반영해 초안 수정" 카드 — 리포트의 개선 제안·페르소나 의견·Pain Point를
+// 체크박스로 묶어 보여주고, 선택한 제안만 반영해 초안을 다시 쓰는 액션을 제공한다.
+function reviseCard(report, ids, draftText, reviseSelected, revising, revisedDraft, reviseError) {
+  const suggestions = buildSuggestions(report, ids, PERSONA_BY_ID);
+  if (!suggestions.length) return null;
+
+  const groups = ["더 나은 전략", "페르소나 피드백"];
+  const groupBlocks = groups
+    .map((g) => {
+      const items = suggestions.filter((s) => s.group === g);
+      if (!items.length) return null;
+      return h(
+        "div",
+        { class: "revise-group" },
+        h("div", { class: "block-label" }, g),
+        items.map((s) => suggestionItem(s, !!reviseSelected[s.id], revising))
+      );
+    })
+    .filter(Boolean);
+
+  const selectedCount = suggestions.filter((s) => reviseSelected[s.id]).length;
+
+  const compare =
+    revising || revisedDraft
+      ? h(
+          "div",
+          { class: "revise-compare" },
+          h(
+            "div",
+            { class: "revise-col" },
+            h("div", { class: "revise-col-head" }, "원본 초안"),
+            h("div", { class: "revise-col-body" }, draftText)
+          ),
+          h(
+            "div",
+            { class: "revise-col" },
+            h("div", { class: "revise-col-head" }, revising ? "수정본 · 작성 중…" : "수정본"),
+            h("div", { class: "revise-col-body" }, revisedDraft || "…")
+          )
+        )
+      : null;
+
+  const applyRow =
+    revisedDraft && !revising
+      ? h(
+          "div",
+          { class: "toolbar", style: { marginTop: "10px" } },
+          h(
+            "button",
+            { class: "btn btn--primary", onClick: () => applyRevisedDraft() },
+            "이 초안으로 다시 시뮬레이션 시작 →"
+          )
+        )
+      : null;
+
   return h(
     "div",
-    { class: "improve" },
-    h("div", { class: "improve__num" }, String(i + 1)),
+    { class: "card", style: { padding: "18px 22px" } },
+    h("div", { class: "block-label" }, "✍️ 제안 반영해 초안 수정"),
+    h(
+      "p",
+      { style: { margin: "6px 0 14px", color: "var(--ink-2)", fontSize: "13px" } },
+      "반영할 제안을 선택하세요. 선택한 항목만 수정 초안에 반영됩니다."
+    ),
+    h("div", { class: "revise-suggestions" }, groupBlocks),
+    reviseError ? h("div", { class: "callout", style: { marginTop: "12px" } }, reviseError) : null,
     h(
       "div",
-      {},
+      { class: "toolbar", style: { marginTop: "12px" } },
       h(
-        "div",
-        { class: "improve__title" },
-        it.title,
-        tag ? h("span", { class: "improve__tag" }, `  · ${tag}`) : null
-      ),
-      h("div", { class: "improve__body" }, it.body)
-    )
+        "button",
+        {
+          class: "btn btn--primary",
+          disabled: revising || selectedCount === 0,
+          onClick: () => reviseDraft(),
+        },
+        revising ? "초안 수정 중…" : `선택한 ${selectedCount}개 제안으로 초안 수정`
+      )
+    ),
+    compare,
+    applyRow
+  );
+}
+
+// "내가 제안한 내용 · 수용도 변화" 카드 — 우리 측 발언마다 페르소나별 수용도와
+// 직전 발언 대비 변화를 타임라인으로 보여준다.
+function timelineCard(messages, ids) {
+  const turns = buildProposalTimeline(messages);
+  if (!turns.length) return null;
+
+  const rows = turns.map((t, i) => {
+    const pills = ids.map((id) => {
+      const persona = PERSONA_BY_ID[id];
+      const cur = t.acc[id];
+      let prev = null;
+      for (let k = i - 1; k >= 0 && prev == null; k--) {
+        if (Number.isFinite(turns[k].acc[id])) prev = turns[k].acc[id];
+      }
+      const has = Number.isFinite(cur);
+      const delta = has && Number.isFinite(prev) ? cur - prev : null;
+      return h(
+        "span",
+        { class: "accept-pill", style: accentVars(persona), title: persona.name },
+        avatar(persona, { sm: true }),
+        has ? h("strong", {}, `${cur}%`) : h("span", { class: "pill-na" }, "–"),
+        delta != null && delta !== 0
+          ? h("em", { class: delta > 0 ? "up" : "down" }, `${delta > 0 ? "▲" : "▼"}${Math.abs(delta)}`)
+          : null
+      );
+    });
+    return h(
+      "li",
+      {},
+      h("div", { class: "proposal-index" }, i === 0 ? "전략 초안" : `후속 ${i}`),
+      h("div", { class: "proposal-text" }, t.text),
+      h("div", { class: "proposal-accept" }, pills)
+    );
+  });
+
+  return h(
+    "div",
+    { class: "card", style: { padding: "18px 22px", marginTop: "16px" } },
+    h("div", { class: "block-label" }, "🗣 내가 제안한 내용 · 수용도 변화"),
+    h(
+      "p",
+      { style: { margin: "6px 0 14px", color: "var(--ink-2)", fontSize: "13px" } },
+      "각 발언이 이해관계자 수용도를 어떻게 움직였는지 비교해 보세요."
+    ),
+    h("ol", { class: "proposal-timeline" }, rows)
   );
 }
 
@@ -109,7 +238,19 @@ function emptyCard() {
 }
 
 export function renderReportScreen() {
-  const { selectedIds, messages, acceptability, round, report, reportLoading } = getState();
+  const {
+    selectedIds,
+    messages,
+    acceptability,
+    round,
+    report,
+    reportLoading,
+    draftText,
+    reviseSelected,
+    revising,
+    revisedDraft,
+    reviseError,
+  } = getState();
   const reactions = deriveReactions(messages, acceptability);
   const ids = selectedIds.filter((id) => reactions[id]);
 
@@ -172,11 +313,8 @@ export function renderReportScreen() {
     )
   );
 
-  const improveList = h(
-    "div",
-    { class: "improve-list" },
-    (report.strategyImprovements || []).map((it, i) => improvementItem(it, i))
-  );
+  const revise = reviseCard(report, ids, draftText, reviseSelected, revising, revisedDraft, reviseError);
+  const timeline = timelineCard(messages, ids);
 
   return h(
     "div",
@@ -190,7 +328,8 @@ export function renderReportScreen() {
     opinions,
     painPoints,
     h("div", { class: "section-title" }, "더 나은 전략 · 초안 개선 제안"),
-    improveList,
+    revise,
+    timeline,
     toolbar
   );
 }
