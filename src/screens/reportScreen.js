@@ -141,11 +141,33 @@ export function renderReportScreen() {
     return h("div", { class: "fade-in" }, head, emptyCard(), toolbar);
   }
 
+  // 4개 서브스코어 평균으로 종합 점수 산출 (없으면 0)
+  const subVals = Object.keys(SUBSCORE_LABEL)
+    .map((key) => report.subscores?.[key]?.score)
+    .filter((v) => typeof v === "number");
+  const overallScore = subVals.length
+    ? Math.round(subVals.reduce((a, b) => a + b, 0) / subVals.length)
+    : 0;
+
   const overallCard = h(
     "div",
-    { class: "card", style: { padding: "20px 22px" } },
-    h("div", { class: "block-label" }, "총평"),
-    h("p", { style: { margin: "8px 0 0", lineHeight: 1.6 } }, report.overallSummary)
+    { class: "card hero-score", style: { "--val": String(overallScore) } },
+    h(
+      "div",
+      { class: "hero-score__ring" },
+      h(
+        "div",
+        { class: "hero-score__val" },
+        h("div", { class: "hero-score__num" }, String(overallScore), h("span", {}, "/100")),
+        h("div", { class: "hero-score__caption" }, "종합 점수")
+      )
+    ),
+    h(
+      "div",
+      { class: "hero-score__body" },
+      h("div", { class: "hero-score__label" }, "총평"),
+      h("p", { class: "hero-score__summary" }, report.overallSummary)
+    )
   );
 
   const subscores = h(

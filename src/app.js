@@ -37,12 +37,25 @@ function header(screen) {
       h(
         "div",
         { class: "brand" },
-        h("div", { class: "brand__mark" }, "E"),
+        h("div", {
+          class: "brand__mark",
+          html:
+            '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9.5" cy="7.5" r="3"/><path d="M22 20v-1a4 4 0 0 0-3-3.87"/><path d="M16 4a4 4 0 0 1 0 7.5"/></svg>',
+        }),
         h(
           "div",
           {},
-          h("div", { class: "brand__title" }, "E&S 커뮤니케이션 모의 협상"),
-          h("div", { class: "brand__sub" }, "대외 발표 전 이해관계자 반응·리스크 사전 점검")
+          h(
+            "div",
+            { class: "brand__titlerow" },
+            h("span", { class: "brand__title" }, "치열한 논리게임"),
+            h("span", { class: "brand__tagline" }, "이 제안, 거절할 수 없을걸?")
+          ),
+          h(
+            "div",
+            { class: "brand__sub" },
+            "E&S 커뮤니케이션 모의 협상 · 대외 발표 전 이해관계자 반응·리스크 사전 점검"
+          )
         )
       ),
       h("div", { class: "steps" }, steps)
