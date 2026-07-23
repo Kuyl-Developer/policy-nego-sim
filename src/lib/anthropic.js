@@ -13,6 +13,7 @@
 import {
   buildChatSystemPrompt,
   buildChatUserPrompt,
+  buildKbBlock,
   buildReportSystemPrompt,
   buildReportUserPrompt,
   REPLY_SCHEMA,
@@ -26,6 +27,10 @@ const GATEWAY_BASE_URL = "https://gw.letsur.ai";
 // 가이드에서 동작이 확인된 모델. 더 상위 모델(claude-opus-4-8 등)이 필요하면
 // Space → AI Gateway → 카탈로그 탭에서 사용 가능한 모델 ID로 교체하세요.
 export const MODEL = "claude-sonnet-4-6";
+// 채팅 응답은 짧아 지연에 민감하므로 빠른 Haiku 4.5 사용(리포트는 판단 품질 위해 Sonnet 유지).
+// 주의: Haiku 4.5는 4.6 미만 모델이라 adaptive thinking 미지원 → 응답 호출에서 thinking 생략.
+// 게이트웨이 카탈로그에 Haiku가 없으면 400이 나므로, 그 경우 MODEL(Sonnet)로 되돌리면 된다.
+export const REPLY_MODEL = "claude-haiku-4-5";
 const KEY_STORAGE = "ens-sim.apiKey";
 
 // API 키 정규화: 붙여넣기 과정에서 섞이기 쉬운 공백·개행·제로폭 문자(U+200B~200D, BOM) 제거.
@@ -118,7 +123,7 @@ function normalizeReply(raw, persona, kbIds) {
 }
 
 // API 호출 오류 메시지를 사용자에게 보여줄 한국어 안내로 변환
-function friendlyError(err) {
+function friendlyError(err, modelId = MODEL) {
   const msg = err?.message || String(err || "");
   if (/ISO-8859-1|code point|Headers/i.test(msg)) {
     return "API 키에 허용되지 않는 문자(공백·줄바꿈·한글·특수문자 등)가 섞여 있습니다. 키를 다시 복사해 붙여넣어 주세요.";
@@ -130,7 +135,7 @@ function friendlyError(err) {
     return "사용량 한도를 초과했습니다(429). 게이트웨이 사용량·한도를 확인해 주세요.";
   }
   if (/400|model|not found|bad request/i.test(msg)) {
-    return `요청이 거부되었습니다(400). 모델 ID(${MODEL})가 카탈로그에서 지원되는지 확인해 주세요.`;
+    return `요청이 거부되었습니다(400). 모델 ID(${modelId})가 카탈로그에서 지원되는지 확인해 주세요.`;
   }
   return msg || "API 호출 실패";
 }
@@ -175,15 +180,22 @@ export async function generateReply({ persona, kb, transcript }) {
   }
   try {
     const client = await getClient(apiKey);
-    // tool use 로 응답 스키마를 강제 — thinking 이 max_tokens 예산을 함께 쓰므로
-    // 도구 입력이 잘리지 않도록 여유 있게 잡고, 스트리밍으로 타임아웃도 방지한다.
+    // tool use 로 응답 스키마를 강제. 응답은 빠른 Haiku(REPLY_MODEL) 사용 — 4.6 미만이라
+    // adaptive thinking 미지원이므로 thinking 파라미터를 넣지 않는다(넣으면 400).
+    // 스트리밍으로 타임아웃도 방지한다.
+    //
+    // 성능: KB 전문(全文)은 라운드마다 동일하므로 시스템의 '캐시 블록'으로 보낸다.
+    // cache_control 을 마지막 블록에 달면 지침+정체성+KB 전체가 캐시되어, 첫 호출 이후
+    // 라운드에서는 대용량 KB 를 재처리하지 않고 캐시를 재사용한다(데이터는 전량 유지).
     const msg = await client.messages
       .stream({
-        model: MODEL,
+        model: REPLY_MODEL,
         max_tokens: 3000,
-        thinking: { type: "adaptive" },
-        system: buildChatSystemPrompt(persona),
-        messages: [{ role: "user", content: buildChatUserPrompt({ persona, kb, transcript }) }],
+        system: [
+          { type: "text", text: buildChatSystemPrompt(persona) },
+          { type: "text", text: buildKbBlock(kb), cache_control: { type: "ephemeral" } },
+        ],
+        messages: [{ role: "user", content: buildChatUserPrompt({ persona, transcript }) }],
         tools: [{ name: "emit_reply", description: "협상 참석자의 다음 발언과 협상 상태를 반환", input_schema: REPLY_SCHEMA }],
         tool_choice: { type: "tool", name: "emit_reply" },
       })
@@ -191,7 +203,7 @@ export async function generateReply({ persona, kb, transcript }) {
     const raw = extractToolInput(msg, "emit_reply");
     return { reply: normalizeReply(raw, persona, kb.map((s) => s.id)) };
   } catch (err) {
-    return { reply: null, error: friendlyError(err) };
+    return { reply: null, error: friendlyError(err, REPLY_MODEL) };
   }
 }
 

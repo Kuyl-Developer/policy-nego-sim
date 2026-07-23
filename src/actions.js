@@ -69,29 +69,35 @@ function buildTranscript() {
   }));
 }
 
-// 선택된 모든 페르소나가 한 명씩(순차) 최신 발언에 대응하는 한 라운드 진행(라이브 전용)
+// 선택된 모든 페르소나가 최신 발언에 대응하는 한 라운드 진행(라이브 전용).
+// 지연을 줄이기 위해 모든 페르소나 응답을 병렬로 호출한다. 병렬화 특성상 이번 라운드의
+// 회의록은 라운드 시작 시점으로 한 번만 스냅샷하며(같은 라운드 내 상호 참조는 없음),
+// 각 응답이 도착하는 대로 화면에 점진적으로 반영한다.
 async function runRound() {
   const { selectedIds } = getState();
   setState({ negotiating: true, pendingIds: [...selectedIds] });
 
-  let hadError = "";
-  for (const id of selectedIds) {
-    const persona = PERSONA_BY_ID[id];
-    const kb = KB_BY_PERSONA[id] || [];
-    const transcript = buildTranscript(); // 앞 페르소나의 이번 라운드 발언까지 포함
-    const { reply, error } = await generateReply({ persona, kb, transcript });
-    if (error || !reply) {
-      hadError = error || "응답 생성 실패";
-      break;
-    }
-    const st = getState();
-    setState({
-      messages: [...st.messages, { id: nextId(), ...reply }],
-      acceptability: { ...st.acceptability, [id]: reply.acceptability },
-      pendingIds: st.pendingIds.filter((x) => x !== id),
-    });
-  }
+  const transcript = buildTranscript(); // 라운드 시작 시점 회의록 스냅샷(모든 페르소나 공유)
 
+  const results = await Promise.all(
+    selectedIds.map(async (id) => {
+      const persona = PERSONA_BY_ID[id];
+      const kb = KB_BY_PERSONA[id] || [];
+      const { reply, error } = await generateReply({ persona, kb, transcript });
+      // 응답이 도착하는 즉시 개별 반영(점진적 렌더링) — 순서는 도착 순서를 따른다.
+      if (reply) {
+        const st = getState();
+        setState({
+          messages: [...st.messages, { id: nextId(), ...reply }],
+          acceptability: { ...st.acceptability, [id]: reply.acceptability },
+          pendingIds: st.pendingIds.filter((x) => x !== id),
+        });
+      }
+      return { id, error: reply ? "" : error || "응답 생성 실패" };
+    })
+  );
+
+  const hadError = results.find((r) => r.error)?.error || "";
   setState({
     negotiating: false,
     pendingIds: [],

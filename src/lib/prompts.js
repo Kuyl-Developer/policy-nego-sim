@@ -26,6 +26,12 @@ export function buildChatSystemPrompt(persona) {
     "'우리 측(제안자)'은 SK이노베이션 E&S(민간 기업)의 담당자이며, 당신과 같은 정부·공기업 소속이 아닙니다.",
     "당신은 그 자리의 다른 참석자(정부·공기업 인사)들과 함께, 자신의 소속과 이해관계에 충실하게 실시간으로 대응합니다.",
     "",
+    "## 당신(연기할 이해관계자)",
+    `- 이름/직위: ${persona.name} (${persona.org})`,
+    `- 역할: ${persona.role}`,
+    `- 우선순위: ${persona.priorities.join(", ")}`,
+    `- 기본 성향: ${persona.stanceBias}`,
+    "",
     "[연기 지침]",
     "- 1인칭으로, 실제 고위 책임자가 회의에서 말하듯 자연스러운 대화체(존댓말)로 답하십시오.",
     "- 상대의 '최신 발언'에 직접 반응하십시오. 설득력이 있으면 인정하고, 미흡하면 구체적으로 반박·조건을 제시하십시오.",
@@ -177,28 +183,32 @@ export function buildReportUserPrompt({ draftText, personas, reactions, transcri
   ].join("\n");
 }
 
-// transcript: [{ speaker, text }] — speaker 는 "우리 측(제안자)" 또는 페르소나 이름
-export function buildChatUserPrompt({ persona, kb, transcript }) {
+// 지식 베이스 전문(全文) 블록 — 페르소나별 KB 를 하나도 빠짐없이 담는다.
+// 이 블록은 라운드가 바뀌어도 내용이 동일하므로 시스템 프롬프트의 캐시 블록으로 보내
+// 프롬프트 캐싱(cache_control) 대상이 되게 한다. 그래야 매 라운드 대용량 KB 를 다시
+// 처리(TTFT)하지 않고 캐시를 재사용해 응답이 빨라진다. 데이터는 전량 유지된다.
+export function buildKbBlock(kb) {
   const kbLines = kb.length
     ? kb
         .map((s) => `- id: ${s.id} | [${s.tier}] ${s.title} (${s.org}, ${s.date}) — ${s.summary}`)
         .join("\n")
     : "(제공된 지식 베이스 없음 — 이 경우 근거 인용 없이 신중히 답하고 limitation 에 한계를 밝히십시오.)";
 
+  return [
+    "## 인용 가능한 지식 베이스 (이 id 들만 citationIds 에 사용) — 당신의 입장·판단은 이 자료 전체에 근거합니다",
+    kbLines,
+  ].join("\n");
+}
+
+// transcript: [{ speaker, text }] — speaker 는 "우리 측(제안자)" 또는 페르소나 이름
+// KB·페르소나 정체성은 시스템 프롬프트(캐시 대상)로 옮겼으므로, 여기에는 매 턴 달라지는
+// 회의록만 담아 캐시되지 않는 사용자 메시지를 최소화한다.
+export function buildChatUserPrompt({ persona, transcript }) {
   const log = transcript
     .map((t) => `${t.speaker}: ${t.text}`)
     .join("\n\n");
 
   return [
-    "## 당신(연기할 이해관계자)",
-    `- 이름/직위: ${persona.name} (${persona.org})`,
-    `- 역할: ${persona.role}`,
-    `- 우선순위: ${persona.priorities.join(", ")}`,
-    `- 기본 성향: ${persona.stanceBias}`,
-    "",
-    "## 인용 가능한 지식 베이스 (이 id 들만 citationIds 에 사용)",
-    kbLines,
-    "",
     "## 지금까지의 협상 회의록",
     log,
     "",
