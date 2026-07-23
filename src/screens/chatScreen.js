@@ -48,16 +48,31 @@ function systemNote(m) {
   return h("div", { class: "sys-note-row" }, h("span", { class: "sys-note" }, m.text));
 }
 
-// 상단: 페르소나별 실시간 수용도 미터 (실제 % 에 따라 바가 채워짐)
-function meterStrip(selectedIds, acceptability, lastStance, negotiating) {
+// 라운드 사이 변화(▲/▼)를 보여주기 위한 "이번 라운드 시작 시점" 수용도 스냅샷.
+// runRound()가 페르소나 응답을 받는 대로 하나씩 반영해 라운드 중 여러 번 리렌더되므로,
+// 렌더마다 직전 값을 갱신하면 변화량이 다음 리렌더에서 즉시 0으로 사라져 버린다(한 프레임만 보임).
+// 그래서 라운드 번호가 바뀌는 시점(= 이번 라운드의 응답이 아직 반영되기 전)에만 스냅샷을 한 번 찍고,
+// 같은 라운드 안에서는 그 값을 기준으로 계속 델타를 계산해 라운드가 끝날 때까지 배지가 유지되게 한다.
+let snapshotRound = -1;
+let roundBaseline = {};
+
+// 상단: 페르소나별 실시간 수용도 미터 (실제 % 에 따라 바가 채워짐 + 라운드 간 변화 뱃지)
+function meterStrip(selectedIds, acceptability, lastStance, negotiating, round) {
+  if (round !== snapshotRound) {
+    roundBaseline = { ...acceptability };
+    snapshotRound = round;
+  }
   const rows = selectedIds.map((id) => {
     const p = PERSONA_BY_ID[id];
     const acc = acceptability[id];
     const has = Number.isFinite(acc);
     const pct = has ? Math.max(0, Math.min(100, acc)) : 0;
+    const base = roundBaseline[id];
+    const delta = has && Number.isFinite(base) ? acc - base : 0;
+    const changed = delta !== 0;
     return h(
       "div",
-      { class: "nego-meter", style: accentVars(p) },
+      { class: "nego-meter" + (changed ? " nego-meter--updated" : ""), style: accentVars(p) },
       avatar(p, { sm: true }),
       h(
         "div",
@@ -70,7 +85,14 @@ function meterStrip(selectedIds, acceptability, lastStance, negotiating) {
           h(
             "span",
             { class: `nego-meter__pct${has ? ` is-${accLevel(pct)}` : " is-empty"}` },
-            has ? `${acc}%` : "—"
+            has ? `${acc}%` : "—",
+            changed
+              ? h(
+                  "span",
+                  { class: "nego-meter__delta " + (delta > 0 ? "up" : "down") },
+                  `${delta > 0 ? "▲" : "▼"}${Math.abs(delta)}%p`
+                )
+              : null
           )
         ),
         h(
@@ -188,6 +210,12 @@ export function renderChatScreen() {
   const { selectedIds, messages, acceptability, negotiating, pendingIds, round, chatInput } = getState();
   const live = isLiveMode();
 
+  // 새 협상(대화 없음)이면 이전 라운드 스냅샷을 초기화
+  if (messages.length === 0) {
+    snapshotRound = -1;
+    roundBaseline = {};
+  }
+
   // 페르소나별 마지막 입장(stance)
   const lastStance = {};
   for (const m of messages) if (m.role === "persona") lastStance[m.personaId] = m.stance;
@@ -204,7 +232,7 @@ export function renderChatScreen() {
     )
   );
 
-  const meters = meterStrip(selectedIds, acceptability, lastStance, negotiating);
+  const meters = meterStrip(selectedIds, acceptability, lastStance, negotiating, round);
 
   // 대화 로그 (system=중앙 안내, user=우리 측, persona=이해관계자)
   // 페르소나별 직전 응답 수용도를 추적해 각 답변에 '이전→현재' 변화 뱃지를 붙인다.
