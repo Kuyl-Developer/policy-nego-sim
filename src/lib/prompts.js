@@ -62,7 +62,12 @@ export function buildChatSystemPrompt(persona) {
 // 한 번에 구조화된 JSON 으로 받는다. "더 나은 전략"은 반드시 최초 작성된
 // draftText 의 구체적 문구를 지목해 어떻게 고칠지 제안해야 한다(사용자 요구사항).
 
-export const REPORT_SCHEMA = {
+// 리포트는 출력이 커서 단일 호출로 받으면 디코딩이 오래 걸린다. 그래서 세 슬라이스
+// (평가 / 피드백 / 개선전략)로 나눠 병렬 호출하고 결과를 하나의 report 객체로 병합한다.
+// 각 슬라이스는 전량 생성되므로 내용은 단일 호출과 동일하다(무손실). 아래는 슬라이스별 스키마.
+
+// ① 평가 슬라이스 — 총평 + 서브스코어 4종
+export const REPORT_EVAL_SCHEMA = {
   type: "object",
   properties: {
     overallSummary: { type: "string" },
@@ -75,6 +80,15 @@ export const REPORT_SCHEMA = {
         evidence: { type: "object", properties: { score: { type: "integer" }, note: { type: "string" } } },
       },
     },
+  },
+  required: ["overallSummary", "subscores"],
+  additionalProperties: false,
+};
+
+// ② 피드백 슬라이스 — 이해관계자별 의견 + Pain Point
+export const REPORT_FEEDBACK_SCHEMA = {
+  type: "object",
+  properties: {
     stakeholderOpinions: {
       type: "array",
       items: {
@@ -84,24 +98,23 @@ export const REPORT_SCHEMA = {
       },
     },
     painPoints: { type: "array", items: { type: "string" } },
-    // 개선 제안은 (제목/이해관계자/이슈/본문) 4요소를 '같은 길이의 평행 배열' 4개로 나눠 받는다.
-    // i번째 항목끼리 하나의 제안을 이룬다. 다필드 객체 배열로 두면 모델이 이 필드를 통째로
-    // JSON 문자열로 직렬화하며 본문 속 따옴표를 깨뜨리는 사례가 있어, 단순 문자열 배열로 평탄화한다.
+  },
+  required: ["stakeholderOpinions", "painPoints"],
+  additionalProperties: false,
+};
+
+// ③ 개선전략 슬라이스 — (제목/이해관계자/이슈/본문) 4요소를 '같은 길이의 평행 배열' 4개로 받는다.
+// i번째 항목끼리 하나의 제안을 이룬다. 다필드 객체 배열로 두면 모델이 이 필드를 통째로
+// JSON 문자열로 직렬화하며 본문 속 따옴표를 깨뜨리는 사례가 있어, 단순 문자열 배열로 평탄화한다.
+export const REPORT_IMPROVEMENTS_SCHEMA = {
+  type: "object",
+  properties: {
     improvementTitles: { type: "array", items: { type: "string" } },
     improvementPersonaIds: { type: "array", items: { type: "string" } },
     improvementIssues: { type: "array", items: { type: "string" } },
     improvementBodies: { type: "array", items: { type: "string" } },
   },
-  required: [
-    "overallSummary",
-    "subscores",
-    "stakeholderOpinions",
-    "painPoints",
-    "improvementTitles",
-    "improvementPersonaIds",
-    "improvementIssues",
-    "improvementBodies",
-  ],
+  required: ["improvementTitles", "improvementPersonaIds", "improvementIssues", "improvementBodies"],
   additionalProperties: false,
 };
 
@@ -182,6 +195,17 @@ export function buildReportUserPrompt({ draftText, personas, reactions, transcri
     "지정된 JSON 객체 하나만 출력하십시오.",
   ].join("\n");
 }
+
+// 리포트를 세 슬라이스로 나눠 병렬 호출할 때, 각 호출이 자기 몫만 생성하도록 붙이는 안내.
+// 공통 컨텍스트(초안·이해관계자 입장·회의록)는 동일하게 주어 섹션 간 논조 일관성을 유지한다.
+export const REPORT_FOCUS = {
+  eval:
+    "## 이번 응답 범위\n지금은 emit_evaluation 도구만 호출해 총평(overallSummary)과 서브스코어(subscores) 4종만 생성하십시오. 나머지 섹션은 별도로 처리되니 여기서는 만들지 마십시오.",
+  feedback:
+    "## 이번 응답 범위\n지금은 emit_feedback 도구만 호출해 이해관계자별 의견(stakeholderOpinions, 참여한 모든 이해관계자)과 Pain Point(painPoints)만 생성하십시오. 나머지 섹션은 별도로 처리되니 여기서는 만들지 마십시오.",
+  improvements:
+    "## 이번 응답 범위\n지금은 emit_improvements 도구만 호출해 '더 나은 전략' 개선 제안(improvement* 평행 배열 4종)만 생성하십시오. 나머지 섹션은 별도로 처리되니 여기서는 만들지 마십시오.",
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // "제안 반영해 초안 수정" — 리포트에서 사용자가 채택한 개선 제안만 반영해

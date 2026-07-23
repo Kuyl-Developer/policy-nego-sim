@@ -110,7 +110,21 @@ export async function reviseDraft() {
     return;
   }
 
-  const { draft, error } = await generateRevision({ draftText, personas, suggestions: chosen });
+  // 스트리밍: 토큰이 도착하는 대로 수정본을 실시간 표시(체감 대기 단축, 출력 데이터는 불변).
+  // 이 앱은 setState마다 전체 재렌더되므로 매 토큰이 아니라 일정 분량(~80자)마다만 반영해
+  // 렌더 부하를 억제한다. 최종 확정본은 아래 setState에서 한 번 더 정리해 반영한다.
+  let lastLen = 0;
+  const { draft, error } = await generateRevision({
+    draftText,
+    personas,
+    suggestions: chosen,
+    onDelta: (partial) => {
+      if (getState().revising && partial.length - lastLen >= 80) {
+        lastLen = partial.length;
+        setState({ revisedDraft: partial });
+      }
+    },
+  });
   setState({
     revising: false,
     revisedDraft: draft || "",

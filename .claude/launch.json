@@ -4,7 +4,7 @@
     {
       "name": "static",
       "runtimeExecutable": "C:\\Users\\Admin\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
-      "runtimeArgs": ["-m", "http.server", "5173"],
+      "runtimeArgs": [".claude/devserver.py", "5173"],
       "port": 5173
     }
   ]

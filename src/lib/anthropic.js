@@ -19,7 +19,10 @@ import {
   buildRevisePrompt,
   buildReviseUserPrompt,
   REPLY_SCHEMA,
-  REPORT_SCHEMA,
+  REPORT_EVAL_SCHEMA,
+  REPORT_FEEDBACK_SCHEMA,
+  REPORT_IMPROVEMENTS_SCHEMA,
+  REPORT_FOCUS,
 } from "./prompts.js";
 import { SEED_REACTIONS, adjustAcceptability } from "../data/seedReactions.js";
 
@@ -279,6 +282,23 @@ function normalizeReport(raw, personaIds) {
  * @param {Array}  p.transcript [{speaker, text}] 전체 회의록
  * @returns {Promise<{report, error?}>}
  */
+// 리포트 한 슬라이스를 tool use 로 생성한다. MODEL이 Haiku(4.6 미만)라 adaptive thinking을
+// 지원하지 않으므로 thinking 파라미터는 생략한다(넣으면 400). 스트리밍으로 호출해 게이트웨이
+// 타임아웃을 피하고, 출력은 tool use 로 강제해 문자열 인용부호로 인한 JSON 파싱 실패를 막는다.
+async function runReportSlice({ client, baseUser, system, focus, toolName, description, schema, maxTokens }) {
+  const msg = await client.messages
+    .stream({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: "user", content: `${baseUser}\n\n${focus}` }],
+      tools: [{ name: toolName, description, input_schema: schema }],
+      tool_choice: { type: "tool", name: toolName },
+    })
+    .finalMessage();
+  return extractToolInput(msg, toolName);
+}
+
 export async function generateReport({ draftText, personas, reactions, transcript }) {
   const apiKey = getApiKey();
   if (!apiKey || keyHasInvalidChars(apiKey)) {
@@ -286,24 +306,38 @@ export async function generateReport({ draftText, personas, reactions, transcrip
   }
   try {
     const client = await getClient(apiKey);
-    // 리포트는 출력이 크다(총평+서브스코어+의견+PainPoint+개선안 5개). MODEL이 Haiku(4.6 미만)라
-    // adaptive thinking을 지원하지 않으므로 thinking 파라미터는 생략한다(넣으면 400).
-    // 스트리밍으로 호출해 게이트웨이 타임아웃도 피하고, 출력은 tool use 로 강제해
-    // 문자열 인용부호로 인한 JSON 파싱 실패를 원천 차단한다.
-    const msg = await client.messages
-      .stream({
-        model: MODEL,
-        max_tokens: 16000,
-        system: buildReportSystemPrompt(),
-        messages: [
-          { role: "user", content: buildReportUserPrompt({ draftText, personas, reactions, transcript }) },
-        ],
-        tools: [{ name: "emit_report", description: "커뮤니케이션 전략 평가 리포트를 반환", input_schema: REPORT_SCHEMA }],
-        tool_choice: { type: "tool", name: "emit_report" },
-      })
-      .finalMessage();
-    const raw = extractToolInput(msg, "emit_report");
-    return { report: normalizeReport(raw, personas.map((p) => p.id)) };
+    const system = buildReportSystemPrompt();
+    const baseUser = buildReportUserPrompt({ draftText, personas, reactions, transcript });
+
+    // 성능: 큰 리포트를 한 번에 디코딩하는 대신 3개 슬라이스로 나눠 병렬 호출한다.
+    // 각 슬라이스는 전량 생성되므로 출력 데이터는 단일 호출과 동일(무손실)하고,
+    // 벽시계 시간은 가장 느린 한 슬라이스 수준으로 줄어든다. 공통 컨텍스트를 동일하게 주어
+    // 섹션 간 논조 일관성을 유지한다.
+    const slices = [
+      { key: "eval", focus: REPORT_FOCUS.eval, toolName: "emit_evaluation", description: "총평과 서브스코어를 반환", schema: REPORT_EVAL_SCHEMA, maxTokens: 3000 },
+      { key: "feedback", focus: REPORT_FOCUS.feedback, toolName: "emit_feedback", description: "이해관계자별 의견과 Pain Point를 반환", schema: REPORT_FEEDBACK_SCHEMA, maxTokens: 5000 },
+      { key: "improvements", focus: REPORT_FOCUS.improvements, toolName: "emit_improvements", description: "초안 개선 제안(평행 배열)을 반환", schema: REPORT_IMPROVEMENTS_SCHEMA, maxTokens: 8000 },
+    ];
+
+    // 일부 슬라이스가 일시적으로 실패해도 나머지는 살린다(allSettled). 성공한 조각만 병합하고,
+    // 빠진 필드는 normalizeReport 가 안전한 기본값으로 채운다(허위 생성 없음).
+    const results = await Promise.allSettled(
+      slices.map((s) => runReportSlice({ client, baseUser, system, ...s }))
+    );
+
+    const merged = {};
+    let firstError = null;
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") Object.assign(merged, r.value);
+      else if (!firstError) firstError = r.reason;
+      if (r.status === "rejected") console.warn(`리포트 슬라이스 실패(${slices[i].key}):`, r.reason);
+    });
+
+    // 전부 실패했을 때만 오류로 처리한다. 하나라도 성공하면 부분 리포트라도 보여준다.
+    if (Object.keys(merged).length === 0) {
+      return { report: null, error: friendlyError(firstError) };
+    }
+    return { report: normalizeReport(merged, personas.map((p) => p.id)) };
   } catch (err) {
     return { report: null, error: friendlyError(err) };
   }
@@ -384,9 +418,11 @@ function stripCodeFence(text) {
  * @param {string} p.draftText 원본 전략 초안
  * @param {Array}  p.personas 협상에 참여한 페르소나 목록
  * @param {Array}  p.suggestions 사용자가 채택한 제안 [{text}]
+ * @param {(partial:string)=>void} [p.onDelta] 스트리밍 중 누적 텍스트를 전달받는 콜백(부분 렌더용).
+ *        출력 데이터를 바꾸지 않고 도착하는 대로 화면에 흘려보내기 위한 것으로, 품질에는 영향이 없다.
  * @returns {Promise<{draft, error?}>}
  */
-export async function generateRevision({ draftText, personas, suggestions }) {
+export async function generateRevision({ draftText, personas, suggestions, onDelta }) {
   const apiKey = getApiKey();
   if (!apiKey || keyHasInvalidChars(apiKey)) {
     return { draft: null, error: "API 키가 없거나 올바르지 않습니다." };
@@ -395,14 +431,18 @@ export async function generateRevision({ draftText, personas, suggestions }) {
     const client = await getClient(apiKey);
     // MODEL이 Haiku(4.6 미만)라 adaptive thinking을 지원하지 않으므로 thinking 파라미터는
     // 생략한다(넣으면 400). 예산은 넉넉히 유지(이전에 4096으로 빈 응답이 나온 사례가 있었음).
-    const msg = await client.messages
-      .stream({
-        model: MODEL,
-        max_tokens: 16000,
-        system: buildRevisePrompt(personas),
-        messages: [{ role: "user", content: buildReviseUserPrompt({ draftText, suggestions }) }],
-      })
-      .finalMessage();
+    const stream = client.messages.stream({
+      model: MODEL,
+      max_tokens: 16000,
+      system: buildRevisePrompt(personas),
+      messages: [{ role: "user", content: buildReviseUserPrompt({ draftText, suggestions }) }],
+    });
+    // 텍스트가 도착하는 대로 누적 스냅샷을 콜백에 넘긴다(체감 대기 단축). 최종 결과는
+    // finalMessage()로 동일하게 확정하므로 스트리밍 여부와 무관하게 출력 데이터는 같다.
+    if (typeof onDelta === "function") {
+      stream.on("text", (_delta, snapshot) => onDelta(snapshot));
+    }
+    const msg = await stream.finalMessage();
     const text = (msg?.content || []).find((b) => b.type === "text")?.text || "";
     const draft = stripCodeFence(text);
     if (!draft) return { draft: null, error: "수정된 초안이 비어 있습니다." };
