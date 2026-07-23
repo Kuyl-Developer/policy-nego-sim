@@ -56,6 +56,17 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* 은은한 멀티컬러 블롭 배경 — 페르소나 accent 색을 저채도로 흩뿌려 화면에 생기 부여 */
+body {
+  background-image:
+    radial-gradient(720px 480px at 8% -6%, color-mix(in srgb, var(--p-climate) 16%, transparent), transparent 60%),
+    radial-gradient(760px 520px at 108% 8%, color-mix(in srgb, var(--p-industry) 15%, transparent), transparent 60%),
+    radial-gradient(680px 460px at 12% 108%, color-mix(in srgb, var(--p-kepco) 16%, transparent), transparent 60%),
+    radial-gradient(760px 520px at 96% 104%, color-mix(in srgb, var(--p-kogas) 15%, transparent), transparent 60%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
 button { font-family: inherit; cursor: pointer; }
 a { color: inherit; }
 
@@ -127,11 +138,22 @@ a { color: inherit; }
 }
 .btn:hover { box-shadow: var(--shadow-sm); }
 .btn:active { transform: translateY(1px); }
-.btn--primary { background: var(--navy); border-color: var(--navy); color: #fff; }
-.btn--primary:hover { background: var(--navy-soft); }
+.btn--primary {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--navy), var(--navy-soft));
+  border-color: var(--navy); color: #fff;
+}
+.btn--primary::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.28) 48%, transparent 66%);
+  transform: translateX(-120%); transition: transform .5s ease;
+}
+.btn--primary:hover::after { transform: translateX(120%); }
+.btn--primary:hover { background: linear-gradient(135deg, var(--navy-soft), var(--navy)); }
 .btn--ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn--lg { padding: 13px 26px; font-size: 15px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled::after { display: none; }
 
 /* --------------------------------------------------------------------- */
 /* Cards                                                                 */
@@ -155,15 +177,34 @@ a { color: inherit; }
 .persona-card {
   position: relative;
   padding: 18px;
+  padding-top: 22px;
   display: flex; gap: 14px; align-items: flex-start;
   border-radius: var(--radius);
   cursor: pointer;
   border: 1px solid var(--line);
   background: var(--surface);
-  transition: box-shadow .15s ease, border-color .15s ease, transform .06s ease;
+  overflow: hidden;
+  transition: box-shadow .18s ease, border-color .18s ease, transform .18s cubic-bezier(.34,1.56,.64,1);
 }
-.persona-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.persona-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: var(--accent); transform: scaleX(0); transform-origin: left;
+  transition: transform .25s ease;
+}
+.persona-card:hover::before, .persona-card.is-selected::before { transform: scaleX(1); }
+.persona-card:hover {
+  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 10px 24px -8px var(--accent);
+  transform: translateY(-3px) scale(1.015);
+}
+.persona-card:hover .avatar { animation: avatarWiggle .45s ease; }
 .persona-card.is-selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset, var(--shadow); }
+
+@keyframes avatarWiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg) scale(1.05); }
+  55% { transform: rotate(7deg) scale(1.05); }
+  80% { transform: rotate(-3deg); }
+}
 
 .persona-card__check {
   position: absolute; top: 14px; right: 14px;
@@ -171,7 +212,15 @@ a { color: inherit; }
   border: 1.5px solid var(--line-strong); background: var(--surface);
   display: grid; place-items: center; color: #fff; font-size: 12px;
 }
-.persona-card.is-selected .persona-card__check { background: var(--accent); border-color: var(--accent); }
+.persona-card.is-selected .persona-card__check {
+  background: var(--accent); border-color: var(--accent);
+  animation: checkPop .32s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes checkPop {
+  0% { transform: scale(0); }
+  65% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
 
 /* Person-photo persona icon (avatar) */
 .avatar {
@@ -264,12 +313,12 @@ a { color: inherit; }
 .composer__input:disabled { background: var(--surface-2); color: var(--ink-3); }
 .composer .btn { flex: 0 0 auto; height: 46px; }
 
-/* Persona bubble — pastel accent only on the border */
+/* Persona bubble — accent tint + rounded left border for stronger speaker identity */
 .bubble {
-  background: var(--surface);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-bg) 65%, var(--surface)), var(--surface) 55%);
   border: 1px solid var(--line);
-  border-left: 4px solid var(--accent);
-  border-radius: 4px var(--radius) var(--radius) var(--radius);
+  border-left: 5px solid var(--accent);
+  border-radius: 6px var(--radius) var(--radius) var(--radius);
   padding: 16px 18px;
   box-shadow: var(--shadow-sm);
 }
@@ -280,6 +329,13 @@ a { color: inherit; }
 .stance {
   margin-left: auto; padding: 3px 10px; border-radius: 999px;
   font-size: 11.5px; font-weight: 700; border: 1px solid transparent;
+  display: inline-block;
+  animation: stancePop .3s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes stancePop {
+  0% { transform: scale(.6); opacity: 0; }
+  70% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
 }
 .stance--support { background: #e6f5ee; color: #1f7a52; }
 .stance--conditional { background: #fbf3dc; color: #9a6a12; }
@@ -323,10 +379,19 @@ a { color: inherit; }
 
 /* thinking / loading state */
 .typing { display: inline-flex; gap: 4px; align-items: center; padding: 6px 0; }
-.typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); animation: blink 1.2s infinite both; }
+.typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 1.2s infinite both; }
 .typing span:nth-child(2) { animation-delay: .2s; }
 .typing span:nth-child(3) { animation-delay: .4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+/* 응답 대기 중인 아바타 은은한 pulse glow */
+.chat-msg:has(.typing) .avatar {
+  animation: avatarPulse 1.4s ease-in-out infinite;
+}
+@keyframes avatarPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
 
 /* --------------------------------------------------------------------- */
 /* Report (screen 3)                                                     */
@@ -339,7 +404,25 @@ a { color: inherit; }
 .accept-row__name { font-weight: 700; font-size: 13.5px; }
 .accept-row__role { font-size: 11.5px; color: var(--ink-3); }
 .bar { flex: 1; height: 12px; border-radius: 999px; background: var(--surface-2); overflow: hidden; position: relative; }
-.bar__fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width .5s ease; }
+.bar__fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width .5s ease; position: relative; overflow: hidden; }
+.accept-row__pct.pct-celebrate {
+  color: var(--accent); text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.pct-sparkle { display: inline-block; margin-left: 3px; animation: sparklePop .5s ease .1s both; }
+@keyframes sparklePop {
+  0% { opacity: 0; transform: scale(.4) rotate(-15deg); }
+  60% { opacity: 1; transform: scale(1.2) rotate(8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+.bar__fill::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.55) 48%, transparent 66%);
+  animation: barShimmer 2.6s ease-in-out infinite;
+}
+@keyframes barShimmer {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
 .accept-row__pct { width: 42px; text-align: right; font-weight: 800; font-size: 13.5px; flex: 0 0 auto; }
 
 .section-title { font-size: 16px; font-weight: 800; margin: 28px 0 12px; letter-spacing: -0.01em; }
@@ -409,3 +492,15 @@ a { color: inherit; }
 
 .fade-in { animation: fadeIn .35s ease both; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* 채팅 말풍선 진입 — 화자에 따라 방향이 다른 튕기는 슬라이드 */
+.chat-msg.fade-in { animation: personaIn .38s cubic-bezier(.2,.9,.3,1.2) both; }
+.chat-msg--user.fade-in { animation: userIn .38s cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes personaIn {
+  from { opacity: 0; transform: translateX(-18px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes userIn {
+  from { opacity: 0; transform: translateX(18px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}

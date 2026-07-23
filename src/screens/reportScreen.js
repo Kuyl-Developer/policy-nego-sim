@@ -31,6 +31,7 @@ function subscoreCard(key, sub) {
 }
 
 function acceptabilityRow(persona, r) {
+  const celebrate = r.acceptability >= 70;
   return h(
     "div",
     { class: "accept-row", style: accentVars(persona) },
@@ -46,7 +47,12 @@ function acceptabilityRow(persona, r) {
       )
     ),
     h("div", { class: "bar" }, h("div", { class: "bar__fill", style: { width: `${r.acceptability}%` } })),
-    h("div", { class: "accept-row__pct" }, `${r.acceptability}%`),
+    h(
+      "div",
+      { class: "accept-row__pct" + (celebrate ? " pct-celebrate" : "") },
+      `${r.acceptability}%`,
+      celebrate ? h("span", { class: "pct-sparkle" }, "✨") : null
+    ),
     stanceBadge(r.stance)
   );
 }
