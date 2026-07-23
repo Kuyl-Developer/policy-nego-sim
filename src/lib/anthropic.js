@@ -28,10 +28,11 @@ const SDK_URL = "https://esm.sh/@anthropic-ai/sdk@0.68.0";
 const GATEWAY_BASE_URL = "https://gw.letsur.ai";
 // 가이드에서 동작이 확인된 모델. 더 상위 모델(claude-opus-4-8 등)이 필요하면
 // Space → AI Gateway → 카탈로그 탭에서 사용 가능한 모델 ID로 교체하세요.
-export const MODEL = "claude-sonnet-4-6";
-// 채팅 응답은 짧아 지연에 민감하므로 빠른 Haiku 4.5 사용(리포트는 판단 품질 위해 Sonnet 유지).
-// 주의: Haiku 4.5는 4.6 미만 모델이라 adaptive thinking 미지원 → 응답 호출에서 thinking 생략.
-// 게이트웨이 카탈로그에 Haiku가 없으면 400이 나므로, 그 경우 MODEL(Sonnet)로 되돌리면 된다.
+// 리포트/초안 수정 속도 개선을 위해 Sonnet → Haiku 4.5로 변경.
+// 주의: Haiku 4.5는 4.6 미만 모델이라 adaptive thinking 미지원 → 관련 호출에서 thinking 파라미터 생략.
+// 게이트웨이 카탈로그에 Haiku가 없으면 400이 나므로, 그 경우 다시 "claude-sonnet-4-6"으로 되돌리면 된다.
+export const MODEL = "claude-haiku-4-5";
+// 채팅 응답도 지연에 민감해 동일하게 빠른 Haiku 4.5 사용.
 export const REPLY_MODEL = "claude-haiku-4-5";
 const KEY_STORAGE = "ens-sim.apiKey";
 
@@ -285,16 +286,14 @@ export async function generateReport({ draftText, personas, reactions, transcrip
   }
   try {
     const client = await getClient(apiKey);
-    // 리포트는 출력이 크다(총평+서브스코어+의견+PainPoint+개선안 5개). adaptive thinking 이
-    // max_tokens 예산을 함께 쓰므로, 예산이 빠듯하면 마지막 큰 필드(strategyImprovements)가
-    // 통째로 잘려 빈 배열로 반환되는 사례가 있었다 — 예산을 넉넉히 잡아 방지한다.
+    // 리포트는 출력이 크다(총평+서브스코어+의견+PainPoint+개선안 5개). MODEL이 Haiku(4.6 미만)라
+    // adaptive thinking을 지원하지 않으므로 thinking 파라미터는 생략한다(넣으면 400).
     // 스트리밍으로 호출해 게이트웨이 타임아웃도 피하고, 출력은 tool use 로 강제해
     // 문자열 인용부호로 인한 JSON 파싱 실패를 원천 차단한다.
     const msg = await client.messages
       .stream({
         model: MODEL,
         max_tokens: 16000,
-        thinking: { type: "adaptive" },
         system: buildReportSystemPrompt(),
         messages: [
           { role: "user", content: buildReportUserPrompt({ draftText, personas, reactions, transcript }) },
@@ -394,14 +393,12 @@ export async function generateRevision({ draftText, personas, suggestions }) {
   }
   try {
     const client = await getClient(apiKey);
-    // 리포트와 동일한 이유로 예산을 넉넉히 잡는다: adaptive thinking 이 max_tokens 예산을
-    // 함께 쓰므로, 예산이 빠듯하면(4096) 사고 과정만으로 소진되어 본문 텍스트 블록이
-    // 아예 생성되지 못하고 빈 응답으로 반환되는 사례가 있었다.
+    // MODEL이 Haiku(4.6 미만)라 adaptive thinking을 지원하지 않으므로 thinking 파라미터는
+    // 생략한다(넣으면 400). 예산은 넉넉히 유지(이전에 4096으로 빈 응답이 나온 사례가 있었음).
     const msg = await client.messages
       .stream({
         model: MODEL,
         max_tokens: 16000,
-        thinking: { type: "adaptive" },
         system: buildRevisePrompt(personas),
         messages: [{ role: "user", content: buildReviseUserPrompt({ draftText, suggestions }) }],
       })
