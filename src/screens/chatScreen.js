@@ -125,10 +125,14 @@ function meterStrip(selectedIds, acceptability, lastStance, negotiating, round) 
   );
 }
 
+// 우리 측(제안자) 발언에도 페르소나와 동일한 원형 아바타를 붙이기 위한 고정 프로필.
+const OUR_SIDE = { name: "우리 측 (제안자)", photo: "assets/personas/us.png", emoji: "🧑‍💼", accent: "#6b8cff", accentBg: "#6b8cff" };
+
 function userBubble(m) {
   return h(
     "div",
     { class: "chat-msg chat-msg--user fade-in" },
+    avatar(OUR_SIDE),
     h(
       "div",
       { class: "chat-msg__body" },
