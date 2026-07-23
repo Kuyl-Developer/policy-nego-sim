@@ -394,10 +394,13 @@ export async function generateRevision({ draftText, personas, suggestions }) {
   }
   try {
     const client = await getClient(apiKey);
+    // 리포트와 동일한 이유로 예산을 넉넉히 잡는다: adaptive thinking 이 max_tokens 예산을
+    // 함께 쓰므로, 예산이 빠듯하면(4096) 사고 과정만으로 소진되어 본문 텍스트 블록이
+    // 아예 생성되지 못하고 빈 응답으로 반환되는 사례가 있었다.
     const msg = await client.messages
       .stream({
         model: MODEL,
-        max_tokens: 4096,
+        max_tokens: 16000,
         thinking: { type: "adaptive" },
         system: buildRevisePrompt(personas),
         messages: [{ role: "user", content: buildReviseUserPrompt({ draftText, suggestions }) }],
