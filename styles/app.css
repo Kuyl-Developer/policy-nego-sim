@@ -279,7 +279,30 @@ a { color: inherit; }
 .nego-meter__main { flex: 1; min-width: 0; }
 .nego-meter__top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
 .nego-meter__name { font-weight: 700; font-size: 13px; }
-.nego-meter__pct { margin-left: auto; font-weight: 800; font-size: 13px; }
+.nego-meter__pct { margin-left: auto; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 5px; }
+
+.bar.bar--lg { height: 18px; background: var(--surface-2); box-shadow: inset 0 1px 3px rgba(0,0,0,.08); }
+.bar--lg .bar__fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 65%, white) 0%, var(--accent) 100%);
+  transition: width .6s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.nego-meter__delta {
+  font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px;
+  animation: deltaPop .45s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.nego-meter__delta.up { color: #1f8b4d; background: rgba(31, 139, 77, .13); }
+.nego-meter__delta.down { color: #c0392b; background: rgba(192, 57, 43, .13); }
+@keyframes deltaPop {
+  0% { opacity: 0; transform: translateY(-4px) scale(.6); }
+  100% { opacity: 1; transform: none; }
+}
+
+.nego-meter--updated .bar--lg { animation: meterFlash .9s ease; }
+@keyframes meterFlash {
+  0% { box-shadow: inset 0 1px 3px rgba(0,0,0,.08), 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { box-shadow: inset 0 1px 3px rgba(0,0,0,.08), 0 0 0 7px transparent; }
+}
 
 /* 대화 로그(스크롤 영역) */
 .nego-log {

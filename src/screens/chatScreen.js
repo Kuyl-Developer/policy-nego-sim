@@ -9,15 +9,21 @@ import { avatar, accentVars, stanceBadge, citationChips } from "../components/co
 import { goToSelect, endNegotiation, sendMessage, setChatInput } from "../actions.js";
 import { isLiveMode } from "../lib/anthropic.js";
 
+// 라운드 사이 변화(▲/▼)를 보여주기 위한 직전 수용도 캐시. 새 협상 시작 시 초기화된다.
+const prevAcceptability = {};
+
 // 상단: 페르소나별 실시간 수용도 미터
 function meterStrip(selectedIds, acceptability, lastStance) {
   const rows = selectedIds.map((id) => {
     const p = PERSONA_BY_ID[id];
     const acc = acceptability[id];
     const has = Number.isFinite(acc);
+    const prev = prevAcceptability[id];
+    const delta = has && Number.isFinite(prev) ? acc - prev : 0;
+    const changed = delta !== 0;
     return h(
       "div",
-      { class: "nego-meter", style: accentVars(p) },
+      { class: "nego-meter" + (changed ? " nego-meter--updated" : ""), style: accentVars(p) },
       avatar(p, { sm: true }),
       h(
         "div",
@@ -27,16 +33,30 @@ function meterStrip(selectedIds, acceptability, lastStance) {
           { class: "nego-meter__top" },
           h("span", { class: "nego-meter__name" }, p.name),
           lastStance[id] ? stanceBadge(lastStance[id]) : null,
-          h("span", { class: "nego-meter__pct" }, has ? `${acc}%` : "—")
+          h(
+            "span",
+            { class: "nego-meter__pct" },
+            has ? `${acc}%` : "—",
+            changed
+              ? h(
+                  "span",
+                  { class: "nego-meter__delta " + (delta > 0 ? "up" : "down") },
+                  `${delta > 0 ? "▲" : "▼"}${Math.abs(delta)}%p`
+                )
+              : null
+          )
         ),
         h(
           "div",
-          { class: "bar" },
+          { class: "bar bar--lg" },
           h("div", { class: "bar__fill", style: { width: `${has ? acc : 0}%` } })
         )
       )
     );
   });
+  for (const id of selectedIds) {
+    if (Number.isFinite(acceptability[id])) prevAcceptability[id] = acceptability[id];
+  }
   return h(
     "div",
     { class: "card nego-meters" },
@@ -124,6 +144,11 @@ function typingBubble(persona) {
 export function renderChatScreen() {
   const { selectedIds, messages, acceptability, negotiating, pendingIds, round, chatInput } = getState();
   const live = isLiveMode();
+
+  // 새 협상(대화 없음)이면 이전 라운드의 델타 캐시를 초기화
+  if (messages.length === 0) {
+    for (const k of Object.keys(prevAcceptability)) delete prevAcceptability[k];
+  }
 
   // 페르소나별 마지막 입장(stance)
   const lastStance = {};
