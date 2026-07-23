@@ -429,7 +429,7 @@ a { color: inherit; }
   display: inline-flex; align-items: center; gap: 7px;
   padding: 5px 12px 5px 6px; border-radius: 999px; cursor: pointer;
   border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  background: var(--accent-bg); color: var(--ink);
+  background: var(--accent-bg); color: #14213d;
   font-size: 13px; font-weight: 600;
   transition: border-color .2s ease, box-shadow .2s ease, transform .12s ease;
 }
